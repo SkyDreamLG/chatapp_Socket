@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="WS-test:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/WS_test_jar</output-path>
+    <root id="archive" name="WS-test.jar">
+      <element id="module-output" name="WS-test" />
+    </root>
+  </artifact>
+</component>
