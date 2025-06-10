@@ -64,6 +64,25 @@ public class Client extends JFrame {
 
         JScrollPane userScrollPane = new JScrollPane(onlineUsersList);
         userScrollPane.setBorder(BorderFactory.createTitledBorder("在线用户"));
+
+        // 添加鼠标事件监听器以支持自动填充和取消选择
+        onlineUsersList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        onlineUsersList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 1) {
+                    String selectedUser = onlineUsersList.getSelectedValue();
+                    if (selectedUser != null) {
+                        messageField.setText("/msg " + selectedUser + " ");
+                        messageField.setCaretPosition(messageField.getText().length());
+                    }
+                } else if (e.getClickCount() == 2) {
+                    // 双击取消选择
+                    onlineUsersList.clearSelection();
+                }
+            }
+        });
+
         add(userScrollPane, BorderLayout.EAST);
 
         connectButton.addActionListener(e -> {
@@ -191,6 +210,8 @@ public class Client extends JFrame {
                                 onlineUsersModel.addElement(tempModel.getElementAt(i));
                             }
                         });
+                    } else if (str.startsWith("[PRIVATE]")) {
+                        appendMessage("【私信】" + str.substring(9)); // 去掉 [PRIVATE]
                     } else {
                         appendMessage(str);
                     }
