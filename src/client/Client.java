@@ -5,6 +5,8 @@ import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
 import java.net.*;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -247,7 +249,8 @@ public class Client extends JFrame {
                 out.flush();
 
                 // 在本地显示自己发送的消息
-                appendMessage("【我】" + msg);
+                String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                appendMessage("【我】" + "【" + time + "】" + msg);
 
                 messageField.setText(""); // 清空输入框
             } catch (IOException ex) {
@@ -284,20 +287,27 @@ public class Client extends JFrame {
                             }
                         });
                     } else if (str.startsWith("[HISTORY]")) {
-                        appendMessage("[历史]" + str.substring(9));
+                        // [HISTORY] 消息中已包含时间，可以直接使用
+                        appendMessage("[历史]" + str.substring(9)); // 去掉[HISTORY]标签后显示
                     } else if (str.startsWith("[PRIVATE]")) {
-                        appendMessage("【私信】" + str.substring(9));
+                        // 私信，加上时间
+                        String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                        appendMessage("【私信】" + "[" + time + "]" + str.substring(9));
                     } else if (str.startsWith("[")) {
                         if (str.contains("]：")) {
                             String nickname = str.substring(1, str.indexOf("]："));
                             if (!nickname.equals(currentNickname)) {
-                                appendMessage(str);
+                                String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                                appendMessage("[" + time + "] " + str);
                             }
                         } else {
-                            appendMessage(str);
+                            String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                            appendMessage("[" + time + "] " + str);
                         }
                     } else {
-                        appendMessage(str);
+                        // 普通消息，加上时间
+                        String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                        appendMessage("[" + time + "] " + str);
                     }
                 }
             } catch (EOFException | SocketException e) {
