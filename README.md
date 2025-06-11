@@ -1,4 +1,4 @@
-# 📄 WS-Test - 基于 WebSocket 的在线聊天系统  
+# 📄 chatapp_Socket - 基于 WebSocket 的在线聊天系统  
 > **项目名称：chatapp_Socket（WebSocket 聊天系统）**  
 > **开发语言：Java 21**  
 > **适用环境：仅在 Java 21 上测试，未验证其他版本兼容性**
