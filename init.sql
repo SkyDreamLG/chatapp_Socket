@@ -3,5 +3,6 @@ CREATE TABLE IF NOT EXISTS chat_log (
     send_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     sender VARCHAR(50) NOT NULL,
     receiver VARCHAR(50),
-    message TEXT NOT NULL
+    message TEXT NOT NULL,
+    log_level VARCHAR(50)
     );

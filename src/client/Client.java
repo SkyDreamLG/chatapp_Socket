@@ -1,13 +1,14 @@
 package client;
 
-import javax.swing.*;
-import java.awt.*;
-import java.awt.event.*;
-import java.io.*;
-import java.net.*;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.concurrent.atomic.AtomicBoolean;
+// 导入需要用到的Java类库
+import javax.swing.*;          // 用于创建图形界面（窗口、按钮等）
+import java.awt.*;            // 图形界面布局和样式相关
+import java.awt.event.*;      // 处理用户操作（如点击按钮、键盘输入等）
+import java.io.*;             // 输入输出流，用于网络通信
+import java.net.*;            // 网络连接相关类
+import java.time.LocalDateTime;        // 获取当前时间
+import java.time.format.DateTimeFormatter; // 时间格式化工具
+import java.util.concurrent.atomic.AtomicBoolean; // 原子布尔值，线程安全
 
 /**
  * 聊天客户端主类
@@ -20,23 +21,23 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class Client extends JFrame {
     // 用户名输入框
-    private JTextField usernameField;
+    private final JTextField usernameField;
     // 服务器IP地址输入框
-    private JTextField ipField;
+    private final JTextField ipField;
     // 端口号输入框
-    private JTextField portField;
+    private final JTextField portField;
     // 消息输入框
-    private JTextField messageField;
+    private final JTextField messageField;
     // 聊天记录展示区域
-    private JTextArea chatArea;
+    private final JTextArea chatArea;
     // 在线用户列表的数据模型
-    private DefaultListModel<String> onlineUsersModel = new DefaultListModel<>();
+    private final DefaultListModel<String> onlineUsersModel = new DefaultListModel<>();
     // 在线用户列表组件
-    private JList<String> onlineUsersList = new JList<>(onlineUsersModel);
+    private final JList<String> onlineUsersList = new JList<>(onlineUsersModel);
     // 连接按钮
-    private JButton connectButton;
+    private final JButton connectButton;
     // 发送消息按钮
-    private JButton sendButton;
+    private final JButton sendButton;
     // 数据输出流，用于向服务器发送数据
     private DataOutputStream out;
     // 数据输入流，用于接收服务器消息
@@ -46,7 +47,7 @@ public class Client extends JFrame {
     // 接收服务器消息的线程
     private Thread recvThread;
     // 原子布尔值，表示是否已连接到服务器
-    private AtomicBoolean connected = new AtomicBoolean(false);
+    private final AtomicBoolean connected = new AtomicBoolean(false);
     // 当前用户的昵称
     private String currentNickname = ""; // 新增字段，保存当前昵称
 
@@ -54,72 +55,76 @@ public class Client extends JFrame {
      * 构造函数：初始化客户端界面
      */
     public Client() {
+        // 设置窗口标题
         setTitle("聊天客户端");
+        // 设置窗口大小
         setSize(800, 500);
-        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE); // 自定义关闭逻辑
-        setLocationRelativeTo(null); // 居中显示窗口
+        // 设置关闭窗口时不自动退出程序（需要自定义关闭处理）
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+        // 设置窗口居中显示
+        setLocationRelativeTo(null);
 
         // 添加窗口关闭监听器，确保退出前断开连接
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
-                disconnect();
-                System.exit(0);
+                disconnect(); // 断开连接
+                System.exit(0); // 关闭程序
             }
         });
 
-        // 顶部面板：用户名、IP、端口、连接按钮
+        // 创建顶部面板，用于放置用户名、IP、端口和连接按钮
         JPanel topPanel = new JPanel(new FlowLayout());
-        topPanel.add(new JLabel("用户名:"));
-        usernameField = new JTextField(10);
+        topPanel.add(new JLabel("用户名:")); // 添加标签
+        usernameField = new JTextField(10); // 创建用户名输入框
         topPanel.add(usernameField);
         topPanel.add(new JLabel("服务器IP:"));
-        ipField = new JTextField("localhost", 10);
+        ipField = new JTextField("localhost", 10); // 默认IP为 localhost
         topPanel.add(ipField);
         topPanel.add(new JLabel("端口:"));
-        portField = new JTextField("8000", 5);
+        portField = new JTextField("8000", 5); // 默认端口为 8000
         topPanel.add(portField);
-        connectButton = new JButton("连接");
+        connectButton = new JButton("连接"); // 创建连接按钮
         topPanel.add(connectButton);
-        add(topPanel, BorderLayout.NORTH);
+        add(topPanel, BorderLayout.NORTH); // 将顶部面板添加到窗口上方
 
-        // 中间聊天内容区域
+        // 创建聊天记录区域
         chatArea = new JTextArea();
-        chatArea.setEditable(false); // 只读
-        JScrollPane scrollPane = new JScrollPane(chatArea);
+        chatArea.setEditable(false); // 不允许用户编辑聊天内容
+        JScrollPane scrollPane = new JScrollPane(chatArea); // 添加滚动条
 
-        // 右侧在线用户列表区域
+        // 创建右侧在线用户列表区域
         JScrollPane userScrollPane = new JScrollPane(onlineUsersList);
-        userScrollPane.setBorder(BorderFactory.createTitledBorder("在线用户"));
+        userScrollPane.setBorder(BorderFactory.createTitledBorder("在线用户")); // 加上边框标题
 
         // 使用 JSplitPane 分割左右两部分，可拖动调整宽度
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, scrollPane, userScrollPane);
-        splitPane.setOneTouchExpandable(true);
+        splitPane.setOneTouchExpandable(true); // 可一键展开
         splitPane.setDividerLocation(600); // 初始分割位置
-        add(splitPane, BorderLayout.CENTER);
+        add(splitPane, BorderLayout.CENTER); // 中间区域放这个分割面板
 
         // 底部消息输入区域
         JPanel bottomPanel = new JPanel(new BorderLayout());
-        messageField = new JTextField();
-        sendButton = new JButton("发送");
-        sendButton.setEnabled(false); // 初始禁用发送功能
-        bottomPanel.add(messageField, BorderLayout.CENTER);
-        bottomPanel.add(sendButton, BorderLayout.EAST);
-        add(bottomPanel, BorderLayout.SOUTH);
+        messageField = new JTextField(); // 创建消息输入框
+        sendButton = new JButton("发送"); // 创建发送按钮
+        sendButton.setEnabled(false); // 初始禁用发送按钮（未连接服务器时不能发消息）
+        bottomPanel.add(messageField, BorderLayout.CENTER); // 消息框在中间
+        bottomPanel.add(sendButton, BorderLayout.EAST); // 发送按钮在右边
+        add(bottomPanel, BorderLayout.SOUTH); // 整个底部面板放在窗口下方
 
         // 鼠标点击用户列表自动填充私信命令
         onlineUsersList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         onlineUsersList.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 1) {
+                if (e.getClickCount() == 1) { // 单击
                     String selectedUser = onlineUsersList.getSelectedValue();
                     if (selectedUser != null) {
-                        messageField.setText("/msg " + selectedUser + " ");
+                        messageField.setText("/msg " + selectedUser + " "); // 自动填入私信指令
                         messageField.setCaretPosition(messageField.getText().length()); // 光标定位到末尾
                     }
-                } else if (e.getClickCount() == 2) {
-                    onlineUsersList.clearSelection(); // 双击取消选择
+                } else if (e.getClickCount() == 2) { // 双击
+                    onlineUsersList.clearSelection(); // 清除选择
                 }
             }
         });
@@ -144,6 +149,7 @@ public class Client extends JFrame {
      * 向聊天区域追加一条消息（使用SwingUtilities.invokeLater保证线程安全）
      */
     private void appendMessage(String message) {
+        // Swing是单线程的，必须用invokeLater才能安全地修改界面
         SwingUtilities.invokeLater(() -> chatArea.append(message + "\n"));
     }
 
@@ -163,11 +169,11 @@ public class Client extends JFrame {
      * 尝试连接到服务器
      */
     private void connectToServer() {
-        String nickname = usernameField.getText().trim();
-        String serverIp = ipField.getText().trim();
+        String nickname = usernameField.getText().trim(); // 获取用户名
+        String serverIp = ipField.getText().trim(); // 获取服务器IP
         int serverPort;
         try {
-            serverPort = Integer.parseInt(portField.getText().trim());
+            serverPort = Integer.parseInt(portField.getText().trim()); // 获取端口号
         } catch (NumberFormatException e) {
             appendMessage("请输入有效的端口号！");
             return;
@@ -242,10 +248,10 @@ public class Client extends JFrame {
      * 发送消息到服务器
      */
     private void sendMessage() {
-        String msg = messageField.getText().trim();
+        String msg = messageField.getText().trim(); // 获取输入框中的内容
         if (!msg.isEmpty()) {
             try {
-                out.writeUTF(msg);
+                out.writeUTF(msg); // 把消息发送给服务器
                 out.flush();
 
                 // 在本地显示自己发送的消息

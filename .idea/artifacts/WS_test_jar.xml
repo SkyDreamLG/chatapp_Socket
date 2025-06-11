@@ -3,6 +3,10 @@
     <output-path>$PROJECT_DIR$/out/artifacts/WS_test_jar</output-path>
     <root id="archive" name="WS-test.jar">
       <element id="module-output" name="WS-test" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/mysql-connector-java-8.0.30.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/protobuf-java-3.19.4.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/HikariCP-6.3.0.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/slf4j-api-1.7.36.jar" path-in-jar="/" />
     </root>
   </artifact>
 </component>
