@@ -45,6 +45,8 @@ public class Client extends JFrame {
     private Thread recvThread;
     // 原子布尔值，表示是否已连接到服务器
     private AtomicBoolean connected = new AtomicBoolean(false);
+    // 当前用户的昵称
+    private String currentNickname = ""; // 新增字段，保存当前昵称
 
     /**
      * 构造函数：初始化客户端界面
@@ -184,6 +186,9 @@ public class Client extends JFrame {
             out.writeUTF(nickname);
             out.flush();
 
+            // 保存当前昵称
+            currentNickname = nickname;
+
             // 接收服务器响应，检查用户名是否重复
             String response = is.readUTF();
             if (response.startsWith("[ERROR]")) {
@@ -283,7 +288,14 @@ public class Client extends JFrame {
                         appendMessage("【私信】" + str.substring(9)); // 去掉 [PRIVATE]
                     } else {
                         // 正常广播消息
-                        appendMessage(str);
+                        if (str.startsWith("【") && str.contains("】")) {
+                            String nickname = str.substring(2, str.indexOf("】"));
+                            if (!nickname.equals(currentNickname)) {
+                                appendMessage(str); // 只有不是自己发的才显示
+                            }
+                        } else {
+                            appendMessage(str); // 非标准格式消息也显示（如系统通知等）
+                        }
                     }
                 }
             } catch (EOFException | SocketException e) {

@@ -6,6 +6,8 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.*;
+import java.util.logging.Logger;
+import java.sql.SQLException;
 
 /**
  * 聊天服务器主类
@@ -25,7 +27,11 @@ public class Server {
     // 线程安全锁，用于同步操作clients和usernames集合
     private static final ReentrantLock lock = new ReentrantLock();
     // 日志记录器
-    private static final Logger logger = Logger.getLogger(Server.class.getName());
+    static final Logger logger = Logger.getLogger(Server.class.getName());
+
+    private static String DB_URL;
+    private static String DB_USER;
+    private static String DB_PASSWORD;
 
     /**
      * 静态代码块：在类加载时执行一次
@@ -58,10 +64,25 @@ public class Server {
             Properties prop = new Properties();
             prop.load(input);
             PORT = Integer.parseInt(prop.getProperty("port", "8000")); // 默认8000
-            logger.info("加载配置文件成功");
+
+            DB_URL = prop.getProperty("db.url");
+            DB_USER = prop.getProperty("db.username");
+            DB_PASSWORD = prop.getProperty("db.password");
+
+            if (DB_URL == null || DB_USER == null || DB_PASSWORD == null) {
+                throw new IOException("缺少必要的数据库配置项");
+            }
+
+            // 初始化数据库连接池
+            DBUtil.init(DB_URL, DB_USER, DB_PASSWORD);
+            logger.info("数据库连接池初始化成功");
+
         } catch (IOException | NumberFormatException ex) {
             logger.warning("加载配置失败，使用默认端口 8000");
             PORT = 8000;
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "初始化数据库失败", e);
+            System.exit(1);
         }
     }
 
@@ -73,6 +94,13 @@ public class Server {
         logger.info("服务器正在启动... 监听端口: " + PORT);
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
             logger.info("服务器已启动并监听于端口: " + PORT);
+
+            // 注册关闭钩子
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                DBUtil.close();
+                logger.info("数据库连接池已关闭");
+            }));
+
             while (true) {
                 // 接收新客户端连接
                 Socket socket = serverSocket.accept();
@@ -179,9 +207,13 @@ public class Server {
                 for (ClientHandler client : clients) {
                     if (client.username.equals(targetUsername)) {
                         try {
-                            client.out.writeUTF("[PRIVATE]" + username + " 私信：" + message);
+                            String privateMsg = "[PRIVATE]" + username + " 私信：" + message;
+                            client.out.writeUTF(privateMsg);
                             client.out.flush();
                             logger.info("私信已发送 [" + username + " -> " + targetUsername + "]：" + message);
+
+                            // 记录私信到数据库
+                            ChatLogDAO.logMessage(this.username, targetUsername, message);
                             return;
                         } catch (IOException ignored) {
                             logger.log(Level.FINE, "私信发送失败", ignored);
@@ -213,6 +245,9 @@ public class Server {
                         logger.log(Level.FINE, "发送消息失败", ignored);
                     }
                 }
+
+                // 记录群发消息到数据库（receiver 为 null）
+                ChatLogDAO.logMessage(this.username, null, msg);
             } finally {
                 lock.unlock();
             }
