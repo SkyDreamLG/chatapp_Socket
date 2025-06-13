@@ -1,7 +1,9 @@
 # 📄 chatapp_Socket - 基于 TCP Socket 的在线聊天系统
 > **项目名称：chatapp_Socket（Socket 聊天系统）**  
 > **开发语言：Java 21**  
-> **适用环境：仅在 Java 21 上测试，未验证其他版本兼容性**
+> **适用环境：仅在 Java 21 上测试，未验证其他版本兼容性**  
+> **文档版本：v2.0**  
+> **更新时间：2025年6月14日**
 
 ---
 
@@ -15,6 +17,7 @@
 - 实时更新在线用户列表
 - 所有聊天记录都会写入数据库，并支持显示历史聊天记录
 - 使用 HikariCP 管理数据库连接池
+- 支持 TLS 加密通信（通过 `keystore.p12` 证书文件）
 - 支持优雅关闭服务器并释放资源
 
 ---
@@ -24,24 +27,24 @@
 ```bash
 .
 ├── init.sql                          # 数据库初始化脚本（创建 chat_log 表）
+├── keystore.p12                      # TLS 证书文件（需自行生成）
 ├── lib/                              # 第三方依赖 JAR 包
-│   ├── commons-codec-1.11.jar        # Apache 工具类
-│   ├── guava-30.1.1-jre.jar          # Google 工具类
+│   ├── bcrypt-0.10.2.jar             # 密码加密工具
 │   ├── HikariCP-6.3.0.jar            # 高性能数据库连接池
 │   ├── mysql-connector-java-8.0.30.jar # MySQL JDBC 驱动
 │   └── ...                           # 其他依赖包
 ├── LICENSE                           # 开源协议文件
 ├── README.md                         # 当前文档（项目说明）
-├── server.properties                 # 服务器配置文件（端口、数据库信息）
+├── server.properties                 # 服务器配置文件（端口、数据库信息、SSL密码）
 ├── src/                              # 源码目录
 │   ├── client/
 │   │   └── Client.java               # 客户端主程序（图形界面）
-│   ├── META-INF/
-│   │   └── MANIFEST.MF               # JAR 包清单文件
-│   └── server/
-│       ├── ChatLogDAO.java           # 聊天记录写入数据库工具类
-│       ├── DBUtil.java               # 数据库连接池工具类（使用 HikariCP）
-│       └── Server.java               # 服务器主程序（含 ClientHandler 内部类）
+│   ├── server/
+│   │   ├── ChatLogDAO.java           # 聊天记录写入数据库工具类
+│   │   ├── DBUtil.java               # 数据库连接池工具类（使用 HikariCP）
+│   │   └── Server.java               # 服务器主程序（含 ClientHandler 内部类）
+│   └── shared/
+│       └── Message.java              # 消息封装类（用于客户端与服务器之间通信）
 └── WS-test.iml                       # IntelliJ IDEA 项目配置文件
 ```
 
@@ -53,11 +56,12 @@
 |------|------|
 | **语言版本** | Java 21（必须使用 JDK 21） |
 | **图形界面** | Swing（纯 Java GUI 库） |
-| **网络通信** | TCP Socket + DataInputStream/DataOutputStream |
+| **网络通信** | TCP Socket + SSL/TLS 加密通信 |
 | **线程管理** | Thread + ReentrantLock（保证线程安全） |
 | **数据库** | MySQL（支持聊天记录持久化） |
 | **连接池** | HikariCP（高性能数据库连接池） |
 | **打包方式** | JAR（可通过 java -jar 运行） |
+| **加密通信** | 使用 TLS 1.3，证书格式为 PKCS#12 |
 
 ---
 
@@ -74,6 +78,7 @@
 - 使用日志记录器（Logger）记录运行状态
 - 在 JVM 关闭时自动释放数据库资源
 - 提供显示历史聊天记录的功能
+- 支持 TLS 加密通信（通过 `keystore.p12`）
 
 ### ⚙️ 配置文件 `server.properties`
 
@@ -82,6 +87,7 @@ port=8000
 db.url=jdbc:mysql://localhost:3306/chatdb?useSSL=false&serverTimezone=UTC
 db.username=root
 db.password=your_password
+ssl.keypassword=your_ssl_password
 ```
 
 > 如果没有这个文件或内容错误，会导致服务器启动失败。
@@ -100,6 +106,7 @@ db.password=your_password
 - 双击清空用户名，点击插入 `/msg` 命令
 - 支持错误提示和断开重连机制
 - 支持显示历史聊天记录
+- 支持 TLS 加密通信（自动识别服务器是否启用）
 
 ### 📐 界面布局说明：
 
@@ -140,7 +147,17 @@ CREATE TABLE IF NOT EXISTS chat_log (
 
 ---
 
-## 🧱 七、编译与运行指南
+## 🔒 七、TLS 加密通信说明
+
+- 服务器使用 `keystore.p12` 文件作为 TLS 证书存储
+- 客户端自动使用 SSL/TLS 协议连接服务器
+- 服务器根据 `ssl.keypassword` 配置项决定是否启用加密通信
+- 证书文件路径固定为当前目录下的 `keystore.p12`
+- 若证书缺失或密码错误，服务器将无法启动 TLS 模式
+
+---
+
+## 🧱 八、编译与运行指南
 
 ### ✅ 准备工作
 
@@ -148,6 +165,7 @@ CREATE TABLE IF NOT EXISTS chat_log (
 2. 下载并安装 **MySQL 8.x**
 3. 创建数据库和表（运行 `init.sql`）
 4. 修改 `server.properties` 中的数据库连接信息
+5. 生成或获取 `keystore.p12` 证书文件（用于 TLS 加密）
 
 ---
 
@@ -157,13 +175,13 @@ CREATE TABLE IF NOT EXISTS chat_log (
 
 ```bash
 cd src
-javac -d ../out/production/WS-test -cp "../lib/*" server/*.java
+javac -d ../out/production/WS-test -cp "../lib/*" server/*.java shared/Message.java
 ```
 
 #### 2. 编译客户端
 
 ```bash
-javac -d ../out/production/WS-test -cp "../lib/*" client/*.java
+javac -d ../out/production/WS-test -cp "../lib/*" client/*.java shared/Message.java
 ```
 
 ---
@@ -188,7 +206,7 @@ java -cp ".:../../../../../lib/*" client.Client
 
 ---
 
-## 📦 八、打包成 JAR 文件（推荐）
+## 📦 九、打包成 JAR 文件（推荐）
 
 ### 1. 创建 MANIFEST 文件（确保路径正确）
 
@@ -209,13 +227,13 @@ Main-Class: server.Server
 ### 2. 打包客户端 JAR
 
 ```bash
-jar cfm Client.jar src/META-INF/MANIFEST.MF client/*.class
+jar cfm Client.jar src/META-INF/MANIFEST.MF client/*.class shared/Message.class
 ```
 
 ### 3. 打包服务器 JAR
 
 ```bash
-jar cfm Server.jar src/META-INF/MANIFEST.MF server/*.class
+jar cfm Server.jar src/META-INF/MANIFEST.MF server/*.class shared/Message.class
 ```
 
 ### 4. 运行 JAR 文件
@@ -227,7 +245,7 @@ java -jar Client.jar
 
 ---
 
-## 🧾 九、协议说明（客户端与服务端交互）
+## 🧾 十、协议说明（客户端与服务端交互）
 
 | 类型         | 协议格式                                       |
 |------------|--------------------------------------------|
@@ -241,7 +259,7 @@ java -jar Client.jar
 
 ---
 
-## 🧪 十、测试建议（适合初学者）
+## 🧪 十一、测试建议（适合初学者）
 
 ### ✅ 正常流程测试
 
@@ -264,24 +282,24 @@ java -jar Client.jar
 
 ---
 
-## 📌 十一、注意事项（新手必看）
+## 📌 十二、注意事项（新手必看）
 
 - 请确保服务器先于客户端启动。
 - 客户端连接失败时会提示“连接服务器失败，请检查网络或服务器是否运行。”
 - 当服务器关闭或断开连接时，客户端会自动退出接收线程并释放资源。
 - 若需多人测试，请确保在同一局域网内，或通过公网 IP 配置转发。
 - 使用 MySQL 数据库时，请确保数据库服务已启动，并创建好 `chatdb` 数据库和 `chat_log` 表。
+- TLS 通信需要证书文件 `keystore.p12` 和正确的密码配置，否则将降级为明文通信。
 
 ---
 
-## 🚀 十二、后续扩展建议（适合进阶）
+## 🚀 十三、后续扩展建议（适合进阶）
 
 如果你有兴趣继续开发这个项目，可以尝试以下方向：
 
 | 功能 | 说明 |
 |------|------|
 | 登录认证 | 添加密码验证、数据库用户表 |
-| 聊天历史回放 | 客户端连接后从数据库加载历史消息 |
 | 使用 ORM | 使用 Hibernate 或 MyBatis 替代 JDBC |
 | WebSocket 改造 | 使用 WebSocket 提升实时性与性能 |
 | 多房间/频道聊天 | 支持不同的聊天频道 |
@@ -290,15 +308,16 @@ java -jar Client.jar
 | 日志分析系统 | 对聊天记录进行统计和分析 |
 | 消息撤回功能 | 支持一定时间内撤回已发送消息 |
 | 消息加密 | 使用 AES 加密私信内容（需协商密钥） |
+| 支持多平台 | 打包为 Android/iOS 应用（使用 Kotlin Multiplatform） |
 
 ---
 
-## 📞 十三、联系方式 & 反馈
+## 📞 十四、联系方式 & 反馈
 
 如果你有任何问题、改进建议或发现 Bug，欢迎联系我！
 
 ---
 
-📄 **文档版本：v1.5**  
-📅 最后更新时间：2025年6月12日  
+📄 **文档版本：v2.0**  
+📅 最后更新时间：2025年6月14日  
 👤 作者：SkyDreamLG

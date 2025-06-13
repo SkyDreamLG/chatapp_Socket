@@ -41,8 +41,8 @@ public class Client extends JFrame {
             sslContext = SSLContext.getInstance("TLS");
             sslContext.init(null, tmf.getTrustManagers(), null);
 
-            // 设置默认 HostnameVerifier（可选，测试环境可用）
-            HttpsURLConnection.setDefaultHostnameVerifier((hostname, session) -> true);
+            // 使用 Java 默认的主机名校验器（基于证书中的 SAN/CN）
+            HttpsURLConnection.setDefaultHostnameVerifier(HttpsURLConnection.getDefaultHostnameVerifier());
 
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this, "初始化SSL失败: " + e.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
