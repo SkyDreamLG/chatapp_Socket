@@ -9,7 +9,8 @@
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="workspace" level="project" />
     <orderEntry type="library" name="ROS" level="project" />
-    <orderEntry type="library" name="zaxxer.HikariCP" level="application" />
-    <orderEntry type="library" name="mysql.connector.java" level="application" />
+    <orderEntry type="library" name="zaxxer.HikariCP" level="project" />
+    <orderEntry type="library" name="mysql.connector.java" level="project" />
+    <orderEntry type="library" name="google.code.gson" level="project" />
   </component>
 </module>
