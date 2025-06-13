@@ -5,10 +5,12 @@ import shared.Message;
 
 import java.io.*;
 import java.net.*;
+import java.security.KeyStore;
 import java.sql.Date;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.*;
+import javax.net.ssl.*;
 
 public class Server {
     private static final List<Client> clients = new ArrayList<>();
@@ -16,6 +18,9 @@ public class Server {
     private static int PORT;
     private static final ReentrantLock lock = new ReentrantLock();
     static final Logger logger = Logger.getLogger(Server.class.getName());
+
+    // 新增的SSL相关字段
+    private static SSLContext sslContext = null;
 
     static {
         ConsoleHandler consoleHandler = new ConsoleHandler();
@@ -28,10 +33,47 @@ public class Server {
         logger.addHandler(consoleHandler);
         logger.setUseParentHandlers(false);
 
-        try (InputStream input = new FileInputStream("server.properties")) {
+        try {
+            // 读取 server.properties
             Properties prop = new Properties();
-            prop.load(input);
+            try (InputStream input = new FileInputStream("server.properties")) {
+                prop.load(input);
+            }
+
             PORT = Integer.parseInt(prop.getProperty("port", "8000"));
+
+            // 获取SSL配置
+            String keyStorePassword = prop.getProperty("ssl.keypassword");
+
+            if (keyStorePassword != null && !keyStorePassword.isEmpty()) {
+                // 固定使用当前目录下的 keystore.p12
+                File keyStoreFile = new File("keystore.p12");
+                if (!keyStoreFile.exists()) {
+                    logger.severe("找不到证书文件: " + keyStoreFile.getAbsolutePath());
+                    throw new IOException("证书文件不存在");
+                }
+
+                // 初始化密钥库
+                KeyStore keyStore = KeyStore.getInstance("PKCS12");
+                try (InputStream ksIs = new FileInputStream(keyStoreFile)) {
+                    keyStore.load(ksIs, keyStorePassword.toCharArray());
+                }
+
+                // 初始化KeyManagerFactory
+                KeyManagerFactory kmf = KeyManagerFactory
+                        .getInstance(KeyManagerFactory.getDefaultAlgorithm());
+                kmf.init(keyStore, keyStorePassword.toCharArray());
+
+                // 初始化SSLContext
+                sslContext = SSLContext.getInstance("TLS");
+                sslContext.init(kmf.getKeyManagers(), null, null);
+
+                logger.info("SSL上下文初始化成功，证书路径: " + keyStoreFile.getAbsolutePath());
+            } else {
+                logger.warning("缺少SSL密码配置，服务器将不使用加密通信");
+            }
+
+            // 数据库配置加载（略去部分细节）
             String DB_URL = prop.getProperty("db.url");
             String DB_USER = prop.getProperty("db.username");
             String DB_PASSWORD = prop.getProperty("db.password");
@@ -41,15 +83,20 @@ public class Server {
 
             DBUtil.init(DB_URL, DB_USER, DB_PASSWORD);
             logger.info("数据库连接池初始化成功");
-        } catch (IOException e) {
-            logger.warning("加载配置失败，使用默认端口 8000");
+
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "初始化失败", e);
             PORT = 8000;
         }
     }
 
     public static void main(String[] args) {
         logger.info("服务器正在启动... 监听端口: " + PORT);
-        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
+
+        try (SSLServerSocket serverSocket = (SSLServerSocket) sslContext.getServerSocketFactory().createServerSocket(PORT)) {
+            serverSocket.setNeedClientAuth(false);
+            serverSocket.setWantClientAuth(false);
+
             logger.info("服务器已启动并监听于端口: " + PORT);
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -58,7 +105,7 @@ public class Server {
             }));
 
             while (true) {
-                Socket socket = serverSocket.accept();
+                SSLSocket socket = (SSLSocket) serverSocket.accept();
                 new Thread(new Client(socket)).start();
                 logger.info("接受了一个新的连接请求");
             }
@@ -68,20 +115,23 @@ public class Server {
     }
 
     private static class Client implements Runnable {
-        private final Socket socket;
+        private final SSLSocket socket;
         private ObjectOutputStream out;
         private ObjectInputStream in;
         private String username;
 
-        public Client(Socket socket) {
+        public Client(SSLSocket socket) {
             this.socket = socket;
         }
 
         @Override
         public void run() {
             try {
-                in = new ObjectInputStream(socket.getInputStream());
+                socket.setSoTimeout(30000); // 30秒超时
+
                 out = new ObjectOutputStream(socket.getOutputStream());
+                out.flush();
+                in = new ObjectInputStream(socket.getInputStream());
 
                 username = (String) in.readObject();
 
