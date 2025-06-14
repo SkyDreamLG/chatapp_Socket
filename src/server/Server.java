@@ -12,6 +12,8 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.*;
 import javax.net.ssl.*;
 
+import static server.UserManager.*; // 导入 UserManager 类中的所有静态方法
+
 /**
  * Server 类是聊天服务器的核心类。
  * 它的主要功能包括：
@@ -164,33 +166,71 @@ public class Server {
 
         @Override
         public void run() {
+            Message message;
+
             try {
-                socket.setSoTimeout(30000); // 设置30秒超时时间
+                socket.setSoTimeout(60000); // 60秒超时
 
                 // 初始化输入输出流
                 out = new ObjectOutputStream(socket.getOutputStream());
                 out.flush();
-                // 输入流，接收客户端发送的数据
                 ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
 
-                // 接收客户端发送的第一个消息：用户名
-                username = (String) in.readObject();
+                // 接收客户端发送请求
+                while ((message = (Message) in.readObject()) != null) {
+                    if ("getsalt".equals(message.type)) {
+                        String user = (String) message.data.get("username");
+                        byte[] salt = getSaltByUsername(user);
+                        out.writeObject(Message.returnSalt(salt));
+                        out.flush();
 
-                // 检查用户名是否重复
-                if (usernames.contains(username)) {
-                    out.writeObject(Message.system("[ERROR] 用户名已存在！"));
-                    out.flush();
-                    disconnect();
-                    return;
+                    } else if ("register".equals(message.type)) {
+                        String user = (String) message.data.get("username"); // 👈 赋值
+                        String hashedPassword = (String) message.data.get("password_hash");
+                        byte[] salt = (byte[]) message.data.get("salt");
+
+                        if (!usernameExists(user)) {
+                            if (register(user, hashedPassword, salt)) {
+                                out.writeObject("success");
+                                out.flush();
+                            } else {
+                                out.writeObject("服务器内部错误");
+                                out.flush();
+                            }
+                        } else {
+                            out.writeObject("用户名已存在，请更换用户名后重试");
+                            out.flush();
+                        }
+
+                    } else if ("login".equals(message.type)) {
+                        this.username = (String) message.data.get("username"); // 赋值
+                        String hashedPassword = (String) message.data.get("password");
+
+                        if (usernameExists(username)) {
+                            if (authenticate(username, hashedPassword)) {
+                                out.writeObject("success");
+                                out.flush();
+                                break;
+                            } else {
+                                out.writeObject("用户名或密码错误");
+                                out.flush();
+                            }
+                        } else {
+                            out.writeObject("用户不存在，请注册");
+                            out.flush();
+                        }
+                    }
                 }
 
-                // 将该客户端加入在线列表
-                lock.lock();
-                try {
-                    usernames.add(username);
-                    clients.add(this);
-                } finally {
-                    lock.unlock();
+                // 将该客户端加入在线列表（只有登录或注册成功后才添加）
+                if (username != null) { //只有当 username 不为 null 才添加
+                    lock.lock();
+                    try {
+                        usernames.add(username);
+                        clients.add(this);
+                    } finally {
+                        lock.unlock();
+                    }
                 }
 
                 // 广播欢迎消息，并发送在线用户列表和最近历史消息
@@ -198,7 +238,6 @@ public class Server {
                 broadcastUserList();
                 sendRecentChatHistory();
 
-                Message message;
                 // 循环接收客户端发送的消息
                 while ((message = (Message) in.readObject()) != null) {
                     if ("chat".equals(message.type)) {

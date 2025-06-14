@@ -1,6 +1,7 @@
 // 消息类定义在 shared 包中，用于客户端和服务器端共享
 package shared;
 
+import java.io.Serial;
 import java.io.Serializable; // 使对象可以被序列化（用于网络传输）
 import java.util.HashMap;     // 使用 HashMap 存储消息数据
 import java.util.Map;          // Map 接口，键值对结构
@@ -11,12 +12,14 @@ import java.util.Map;          // Map 接口，键值对结构
  */
 public class Message implements Serializable {
     // 序列化版本号，确保不同版本兼容性
+    @Serial
     private static final long serialVersionUID = 1L;
+    public Map<String, byte[]> binaryData = new HashMap<>();
 
     /**
      * 消息类型字段：
      * 表示这条消息是什么类型的，比如群聊、私聊、用户列表更新等。
-     * 可选值包括："chat", "private", "user_list", "history", "system"
+     * 可选值包括："chat", "private", "user_list", "history", "system", "login", "register"
      */
     public String type;
 
@@ -93,6 +96,53 @@ public class Message implements Serializable {
         Message msg = new Message();           // 创建新消息
         msg.type = "system";                   // 设置消息类型为“系统消息”
         msg.data.put("content", content);      // 添加系统内容
+        return msg;
+    }
+
+    /**
+     * 构造一条登陆请求消息
+     * 登陆请求消息通常是客户端在用户请求登陆时发送的消息
+     * @param username 登陆请求的用户名
+     * @param password 登陆请求的用户的密码哈希
+     * @return 返回一个 Message 对象，表示系统消息
+     */
+    public static Message login(String username, String password) {
+        Message msg = new Message();           // 创建新消息
+        msg.type = "login";                   // 设置消息类型为“登陆消息”
+        msg.data.put("username", username);      // 添加用户名
+        msg.data.put("password", password);      // 添加密码哈希
+        return msg;
+    }
+
+    /**
+     * 构造一条注册请求消息
+     */
+    public static Message register(String username, String passwordHash, byte[] salt) {
+        Message msg = new Message();
+        msg.type = "register";
+        msg.data.put("username", username);
+        msg.data.put("password_hash", passwordHash);
+        msg.data.put("salt", salt);
+        return msg;
+    }
+
+    /**
+     * 请求用户独立的加密盐
+     */
+    public static Message getSalt(String username) {
+        Message msg = new Message();
+        msg.type = "getsalt";
+        msg.data.put("username", username);
+        return msg;
+    }
+
+    /**
+     * 返回用户独立的加密盐
+     */
+    public static Message returnSalt(byte[] salt) {
+        Message msg = new Message();
+        msg.type = "returnsalt";
+        msg.data.put("salt", salt); // 改为放到 data 中
         return msg;
     }
 }

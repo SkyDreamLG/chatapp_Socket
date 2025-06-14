@@ -7,6 +7,8 @@
       <element id="extracted-dir" path="$PROJECT_DIR$/lib/protobuf-java-3.19.4.jar" path-in-jar="/" />
       <element id="extracted-dir" path="$PROJECT_DIR$/lib/HikariCP-6.3.0.jar" path-in-jar="/" />
       <element id="extracted-dir" path="$PROJECT_DIR$/lib/slf4j-api-1.7.36.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/gson-2.13.1.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/error_prone_annotations-2.38.0.jar" path-in-jar="/" />
     </root>
   </artifact>
 </component>

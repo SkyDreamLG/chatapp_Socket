@@ -15,6 +15,8 @@ import java.time.format.DateTimeFormatter; // 时间格式化
 import java.util.Map; // 映射类型数据结构
 import java.util.concurrent.atomic.AtomicBoolean; // 线程安全布尔值
 
+import static client.SecurityUtil.hashPasswordWithSalt;
+
 public class Client extends JFrame {
     // 消息显示区域组件
     private final JTextArea messageArea = new JTextArea();
@@ -132,6 +134,185 @@ public class Client extends JFrame {
         setVisible(true); // 显示窗口
     }
 
+    private void showRegisterDialog(ObjectOutputStream out) {
+        JPanel panel = new JPanel(new GridLayout(3, 2));
+
+        JTextField regUserField = new JTextField();
+        JPasswordField regPassField = new JPasswordField();
+        JPasswordField confirmPassField = new JPasswordField();
+
+        panel.add(new JLabel("用户名:"));
+        panel.add(regUserField);
+        panel.add(new JLabel("密码:"));
+        panel.add(regPassField);
+        panel.add(new JLabel("确认密码:"));
+        panel.add(confirmPassField);
+
+        int option = JOptionPane.showConfirmDialog(
+                null, panel, "注册账号", JOptionPane.OK_CANCEL_OPTION);
+
+        if (option == JOptionPane.OK_OPTION) {
+            String username = regUserField.getText().trim();
+            String password = new String(regPassField.getPassword());
+            String confirmPassword = new String(confirmPassField.getPassword());
+
+            if (username.isEmpty() || password.isEmpty()) {
+                JOptionPane.showMessageDialog(null, "用户名或密码不能为空！");
+                return;
+            }
+
+            if (!password.equals(confirmPassword)) {
+                JOptionPane.showMessageDialog(null, "两次输入的密码不一致！");
+                return;
+            }
+
+            // 生成盐并哈希密码
+            byte[] salt = SecurityUtil.generateSalt();
+            String hashedPassword = hashPasswordWithSalt(password, salt);
+
+            // 构造注册消息
+            Message registerMsg = Message.register(username, hashedPassword, salt);
+
+            try {
+                this.out.writeObject(registerMsg);
+                this.out.flush();
+
+                // === 新增：接收服务器返回结果 ===
+                Object response = is.readObject(); // 假设服务器返回的是 String 类型
+                if (response instanceof String result) {
+
+                    if ("success".equals(result)) {
+                        JOptionPane.showMessageDialog(null, "注册成功！");
+                    } else {
+                        JOptionPane.showMessageDialog(null, "注册失败：" + result);
+                    }
+                } else {
+                    JOptionPane.showMessageDialog(null, "未知响应格式");
+                }
+
+            } catch (IOException | ClassNotFoundException ex) {
+                JOptionPane.showMessageDialog(null, "注册失败：" + ex.getMessage());
+                ex.printStackTrace();
+            }
+        }
+    }
+
+    private void showLoginDialog(ObjectOutputStream out, ObjectInputStream in, String host, int port) {
+        // 登录面板
+        JPanel loginPanel = new JPanel(new GridLayout(2, 2));
+
+        JTextField usernameField = new JTextField();
+        JPasswordField passwordField = new JPasswordField();
+
+        loginPanel.add(new JLabel("用户名:"));
+        loginPanel.add(usernameField);
+        loginPanel.add(new JLabel("密码:"));
+        loginPanel.add(passwordField);
+
+        // 按钮区域
+        JButton loginButton = new JButton("登录");
+        JButton registerButton = new JButton("注册");
+
+        // 使用 final 数组来延迟初始化 loginDialog
+        final JDialog[] loginDialogHolder = new JDialog[1];
+
+        // 登录按钮动作监听器
+        loginButton.addActionListener(e -> {
+            String username = usernameField.getText().trim();
+            String password = new String(passwordField.getPassword());
+
+            if (username.isEmpty() || password.isEmpty()) {
+                JOptionPane.showMessageDialog(loginDialogHolder[0], "用户名或密码不能为空！");
+                return;
+            }
+
+            try {
+                // 发送请求获取 salt
+                Message getSaltMsg = Message.getSalt(username);
+                out.writeObject(getSaltMsg);
+                out.flush();
+
+                // 接收 salt 响应
+                Object response = in.readObject();
+                if (!(response instanceof Message saltResponse)) {
+                    JOptionPane.showMessageDialog(loginDialogHolder[0], "服务器响应错误");
+                    return;
+                }
+
+                // 判断是否是正确的 salt 响应类型
+                if (!"returnsalt".equals(saltResponse.type)) {
+                    JOptionPane.showMessageDialog(loginDialogHolder[0], "未收到 salt 响应，收到的是：" + saltResponse.type);
+                    return;
+                }
+
+                // 获取 salt 并验证类型
+                Object saltObj = saltResponse.data.get("salt");
+                if (!(saltObj instanceof byte[] serverSalt)) {
+                    JOptionPane.showMessageDialog(loginDialogHolder[0], "服务器返回的 salt 格式错误");
+                    return;
+                }
+
+                // 对密码进行哈希加密
+                String hashedPassword = hashPasswordWithSalt(password, serverSalt);
+
+                // 发送登录消息
+                Message loginMsg = Message.login(username, hashedPassword);
+                out.writeObject(loginMsg);
+                out.flush();
+
+                // 接收登录结果
+                Object loginResult = in.readObject();
+                if (loginResult instanceof String result) {
+                    if ("success".equals(result)) {
+                        connected.set(true);
+                        setTitle("聊天客户端 - 已连接到 TLS://" + host + ":" + port);
+                        loginDialogHolder[0].dispose(); // 关闭窗口
+                        new Thread(new RecvThread()).start();
+                    } else {
+                        JOptionPane.showMessageDialog(loginDialogHolder[0], result);
+                    }
+                } else {
+                    JOptionPane.showMessageDialog(loginDialogHolder[0], "无效的登录响应");
+                }
+
+            } catch (IOException ex) {
+                JOptionPane.showMessageDialog(loginDialogHolder[0], "与服务器通信失败: " + ex.getMessage());
+                ex.printStackTrace();
+            } catch (ClassNotFoundException ex) {
+                JOptionPane.showMessageDialog(loginDialogHolder[0], "无法解析服务器消息: " + ex.getMessage());
+                ex.printStackTrace();
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(loginDialogHolder[0], "发生未知错误: " + ex.getMessage());
+                ex.printStackTrace();
+            }
+        });
+
+        // 注册按钮动作监听器
+        registerButton.addActionListener(e -> {
+            loginDialogHolder[0].dispose(); // 关闭登录窗口
+            showRegisterDialog(out); // 打开注册窗口
+        });
+
+        // 使用 JOptionPane 构建登录窗口
+        Object[] options = {loginButton, registerButton}; // 自定义按钮数组
+
+        JOptionPane optionPane = new JOptionPane(
+                loginPanel,
+                JOptionPane.PLAIN_MESSAGE,
+                JOptionPane.DEFAULT_OPTION,
+                null,
+                options,
+                loginButton
+        );
+
+        // 初始化 dialog
+        loginDialogHolder[0] = optionPane.createDialog(this, "登录");
+        loginDialogHolder[0].setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+
+        // 显示登录窗口
+        loginDialogHolder[0].setVisible(true);
+    }
+
     // 显示连接服务器对话框
     private void showConnectDialog() {
         JTextField ipField = new JTextField("localhost"); // 默认IP地址
@@ -186,22 +367,8 @@ public class Client extends JFrame {
                 out.flush();
                 is = new ObjectInputStream(sslSocket.getInputStream());
 
-                // 输入用户名
-                String nickname = JOptionPane.showInputDialog(this, "请输入用户名:");
-                if (nickname == null || nickname.trim().isEmpty()) {
-                    sslSocket.close();
-                    return;
-                }
-
-                // 发送用户名给服务器
-                out.writeObject(nickname);
-                out.flush();
-
-                connected.set(true); // 设置为已连接状态
-                new Thread(new RecvThread()).start(); // 启动接收线程
-
-                // 更新标题栏显示连接状态
-                setTitle("聊天客户端 - 已连接到 TLS://" + host + ":" + port);
+                // 在连接成功后调用登录窗口
+                showLoginDialog(out, is, host, port);
 
             } catch (SSLException ex) {
                 JOptionPane.showMessageDialog(this, "TLS 握手失败：\n" + ex.getMessage(),
